@@ -1,6 +1,6 @@
 ---
 name: Grades
-version: 0.04
+version: 0.05
 author:
   - 'Dr Bean <drbean, followed by the at mark (@), cpan, then a dot, and finally, org>'
 abstract: Grading of a league of players (ie class of students.)
@@ -18,8 +18,8 @@ build_requires:
 provides:
   Grades:
     file: lib/Grades.pm
-    version: 0.04
-  Script:
+    version: 0.05
+  Grades::Script:
     file: lib/Grades.pm
 generated_by: Module::Build version 0.32
 meta-spec:
