@@ -7,9 +7,14 @@ WriteMakefile
           'EXE_FILES' => [],
           'VERSION_FROM' => 'lib/Grades.pm',
           'PREREQ_PM' => {
+                           'YAML' => 0,
+                           'MooseX::Declare' => 0,
+                           'Carp' => 0,
                            'Test::More' => 0,
                            'MooseX::Getopt' => 0,
-                           'MooseX::Declare' => 0,
+                           'List::Util' => 0,
+                           'POSIX' => 0,
+                           'List::MoreUtils' => 0,
                            'Moose' => 0
                          }
         )
