@@ -9,6 +9,7 @@ WriteMakefile
           'PREREQ_PM' => {
                            'YAML' => 0,
                            'MooseX::Declare' => 0,
+                           'Pod::Coverage::Moose' => 0,
                            'Carp' => 0,
                            'Test::More' => 0,
                            'MooseX::Getopt' => 0,
