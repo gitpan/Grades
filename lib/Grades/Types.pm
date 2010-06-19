@@ -8,7 +8,7 @@ use MooseX::Types -declare =>
 	[ qw/PlayerName PlayerNames AbsenteeNames PlayerId Member Members
 		Results
 		HomeworkResult HomeworkRound HomeworkRounds
-		Beancans Card
+		Beancans Card TortCard
 		Exam
 		Weights/ ];
 
@@ -133,7 +133,7 @@ subtype HomeworkResult,
 	as Value,
 	where { Num->check( $_ ) or m/transfer/i },
 	message {
-"Missing or non-numerical score or not string 'transfer'," };
+"Missing or non-numerical score or value not 'transfer'," };
 
 =head2 HomeworkRound
 
@@ -146,14 +146,14 @@ subtype HomeworkRound,
 	where { 
 	    my $play = $_;
 	    all {
-		    my $player = $_;
-		    PlayerId->check( $player ) and 
-		    HomeworkResult->check( $play->{$player} )
+		    m/topic/i or
+		    PlayerId->check( $_ ) and 
+		    HomeworkResult->check( $play->{$_} )
 	    }
 	    keys %$play;
 	},
 	message {
-"Problematic PlayerId or Homework Result," };
+"Problematic PlayerId or HomeworkResult or not 'topic' key," };
 
 =head2 HomeworkRounds
 
@@ -165,12 +165,12 @@ subtype HomeworkRounds,
 	as HashRef,
 	where { 
 		my $results = $_;
-		all {
+		my $test = all {
 			my $round = $_;
 			Int->check( $round ) and
 			    HomeworkRound->check( $results->{$round} )
-		}
-		keys %$results;
+		    } keys %$results;
+		return 0 unless $test or not defined $test;
 	},
 	message {
 "Impossible round number or PlayerId, or missing or non-numerical score," };
@@ -219,7 +219,28 @@ subtype Card,
 		}
 		keys %card;
 	},
-	message { 'Probably undefined or non-numeric Merit, Absence, Tardy scores, or possibly illegal beancan,' };
+	message { 'Probably undefined or non-numeric Merit, Absence, Tardy scores, or possibly illegal beancan on Card,' };
+
+=head2 TortCard
+
+A hashref of classwork results for the lesson, where the keys are beancan names (Str) and for each beancan there are 'merits', and 'absences' keys, with an Int value for the first and AbsenteeNames for the second key.
+
+=cut
+
+subtype TortCard,
+	as HashRef,
+	where {
+		my %card = %$_;
+		delete $card{Absent};
+		all {
+			my $can = $_;
+			Str->check( $can ) and 
+			Num->check( $card{$can}->{merits} ) and
+			AbsenteeNames->check( $card{$can}->{absent} )
+		}
+		keys %card;
+	},
+	message { 'Probably an undefined or non-numeric Merit, or invalid AbsenteeNames, or possibly illegal beancan on TortCard,' };
 
 =head2 Exam
 

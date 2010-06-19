@@ -1,7 +1,7 @@
 package Grades;
 
-#Last Edit: 2010  2月 01, 16時24分23秒
-#$Id: /mi/ttb/beans/tags/Grades-0.08/lib/Grades.pm 1895 2010-02-01T07:28:14.095444Z drbean  $
+#Last Edit: 2010  6月 19, 16時04分51秒
+#$Id: /loc/ttb/beans/trunk/lib/Grades.pm 5848 2010-06-19T09:54:22.281646Z drbean  $
 
 our $VERSION = 0.08;
 
@@ -17,6 +17,9 @@ has 'league' => (metaclass => 'Getopt', is => 'ro', isa => 'Str',
 		cmd_flag => 'l',);
 has 'exam' => ( metaclass => 'Getopt', is => 'ro', isa => 'Str',
 		cmd_flag => 'e',);
+
+has 'round' => ( metaclass => 'Getopt', is => 'ro', isa => 'Str',
+		cmd_flag => 'r',);
 
 # letters2score.pl
 has 'exercise' => ( metaclass => 'Getopt', is => 'ro', isa => 'Str',
@@ -72,10 +75,20 @@ class League {
 	use YAML qw/LoadFile DumpFile/;
 	use List::MoreUtils qw/any/;
 	use Grades::Types qw/PlayerName PlayerNames Members/;
+	use Try::Tiny;
+
+=head3 leagues
+
+The path to the league directory.
+
+=cut
+
+	has 'leagues' => (is => 'ro', isa => 'Str', required => 1, lazy => 1,
+	    default => '/home/drbean/class' );
 
 =head3 id
 
-Unless called from the script or web app, it's a path to the league directory.
+Actually, it's a path to the league directory, below the $grades->leagues dir.
 
 =cut
 
@@ -89,9 +102,9 @@ The content of the league configuration file.
 
 	has 'yaml' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
 	method _build_yaml {
-			my ($instance) = @_;
-			my $league = $instance->id;
-			$self->inspect( "$league/league.yaml" );
+			my $leaguedirs = $self->leagues;
+			my $league = $self->id;
+			$self->inspect( "$leaguedirs/$league/league.yaml" );
 	}
 
 =head3 name
@@ -188,7 +201,7 @@ The id of the member with the given player name.
 	my @names = keys %ids;
 	my @ids = values %ids;
 	local $" = ', ';
-	warn @ids . " players named @names with ids: @ids," unless @ids==1;
+	warn @ids . " players named @names, with ids: @ids," unless @ids==1;
 	if ( @ids == 1 ) { return $ids[0] }
 	else { return $ids{$player}; }
       }
@@ -199,8 +212,11 @@ Loads a YAML file.
 
 =cut
 
-	method inspect (Str $file) {
-		LoadFile $file;
+    method inspect (Str $file) {
+	my ($warning, $data);
+	try { $data = LoadFile $file }
+	    catch { warn "Couldn't open $file," };
+	return $data;
 	}
 
 =head3 save
@@ -209,8 +225,9 @@ Dumps a YAML file
 
 =cut
 
-	method save (Str $file, HashRef $data) {
-		DumpFile $file, $data;
+    method save (Str $file, HashRef $data) {
+	try { DumpFile $file, $data }
+	    catch { warn "Couldn't save $data to $file," };
 	}
 
 }
@@ -275,6 +292,8 @@ The name is 'Bye'. The id is too, as a matter of fact.
     has 'name' => (is => 'ro', isa => 'Str', required => 1 );
 
 }
+
+
 =head2	GRADES CLASS
 
 =head2 Grades' Homework Methods
@@ -293,12 +312,13 @@ The directory where the homework is.
 
 =cut
 
-	has 'hwdir' => (is => 'ro', isa => 'Str', lazy_build => 1);
-	method _build_hwdir {
-		my $league = $self->league->id;
-		my $data = $self->league->yaml;
-		my $hwdir = $data->{hw} || "$league/homework"
-	}
+    has 'hwdir' => (is => 'ro', isa => 'Str', lazy_build => 1);
+    method _build_hwdir {
+	my $league = $self->league->id;
+	my $leaguedir = $self->league->leagues . "/" . $league;
+	my $basename = shift->league->yaml->{hw} || "exams";
+	my $hwdir = $leaguedir . '/' . $basename;
+    }
 
 =head3 rounds
 
@@ -477,8 +497,10 @@ Running total homework scores of the league as percentages of the totalMax to th
 		my $league = $self->league->id;
 		my $totalMax = $self->totalMax;
 		my $idtotals = $self->homework;
-		+{ map { $_ => min( 100, 100 * $idtotals->{$_} / $totalMax )
-				|| 0 } keys %$idtotals };
+		my %percent = map {
+		    $_ => min( 100, 100 * $idtotals->{$_} / $totalMax )
+				|| 0 } keys %$idtotals;
+		return \%percent;
 	}
 
 }
@@ -493,17 +515,33 @@ The jigsaw is a cooperative learning activity where all the players in a group g
 role Jigsaw {
     use List::MoreUtils qw/any all/;
     use Try::Tiny;
+    use Moose::Autobox;
 
-=head3 jigsawConfig
+=head3 jigsawdirs
 
-The round.yaml file with data about the jigsaw activity in the given location (directory.)
+The directory where the jigsaws are.
 
 =cut
 
-    method jigsawConfig( Str $location) {
+    has 'jigsawdirs' => (is => 'ro', isa => 'Str', lazy_build => 1);
+    method _build_jigsawdirs {
+	my $league = $self->league->id;
+	my $leaguedir = $self->league->leagues . "/" . $league;
+	my $basename = shift->league->yaml->{jigsaw} || "exams";
+	my $jigsawdir = $leaguedir .'/' . $basename;
+	}
+
+=head3 config
+
+The round.yaml file with data about the jigsaw activity in the given round (directory.)
+
+=cut
+
+    method config( Str $round) {
+	my $jigsaws = $self->jigsawdirs;
         my $config;
-	try { $config = $self->inspect("$location/round.yaml") }
-	    catch { warn "No config file for $location jigsaw" };
+	try { $config = $self->inspect("$jigsaws/$round/round.yaml") }
+	    catch { warn "No config file for $jigsaws/$round jigsaw" };
 	return $config;
     }
 
@@ -513,10 +551,17 @@ The topic of the quiz in the given jigsaw for the given group.
 
 =cut
 
-    method topic ( Str $location, Str $group ) {
-	my $config = $self->jigsawConfig($location);
-	my $activity = $config->{activity}->{$group};
-	my $topic = $activity->{topic};
+    method topic ( Str $jigsaw, Str $group ) {
+	my $config = $self->config('Jigsaw', $jigsaw);
+	my $activity = $config->{activity};
+	for my $topic ( keys %$activity ) {
+	    my $forms = $activity->{$topic};
+	    for my $form ( keys %$forms ) {
+		my $tables = $forms->{$form};
+		return $topic if any { $_ eq $group } @$tables;
+	    }
+	}
+	return;
 }
 
 =head3 form
@@ -525,11 +570,18 @@ The form of the quiz in the given jigsaw for the given group.
 
 =cut
 
-    method form ( Str $location, Str $group ) {
-	my $config = $self->jigsawConfig($location);
-	my $activity = $config->{activity}->{$group};
-	my $form = $activity->{form};
-}
+    method form ( Str $jigsaw, Str $group ) {
+	my $config = $self->config('Jigsaw', $jigsaw);
+	my $activity = $config->{activity};
+	for my $topic ( keys %$activity ) {
+	    my $forms = $activity->{$topic};
+	    for my $form ( keys %$forms ) {
+		my $tables = $forms->{$form};
+		return $form if any { $_ eq $group } @$tables;
+	    }
+	}
+	return;
+    }
 
 =head3 quizfile
 
@@ -537,9 +589,9 @@ The file system location of the file with the quiz questions and answers for the
 
 =cut
 
-    method quizfile ( Str $location ) {
-	my $config = $self->jigsawConfig($location);
-	return $config->{file};
+    method quizfile ( Str $jigsaw ) {
+	my $config = $self->config('Jigsaw', $jigsaw);
+	return $config->{text};
     }
 
 =head3 quiz
@@ -548,13 +600,13 @@ The quiz questions (as an anon array) in the given jigsaw for the given group.
 
 =cut
 
-    method quiz ( Str $location, Str $group ) {
-	my $quizfile = $self->quizfile($location);
+    method quiz ( Str $jigsaw, Str $group ) {
+	my $quizfile = $self->quizfile($jigsaw);
 	my $activity;
 	try { $activity = $self->inspect( $quizfile ) }
 	    catch { warn "No $quizfile jigsaw content file" };
-	my $topic = $self->topic( $location, $group );
-	my $form = $self->form( $location, $group );
+	my $topic = $self->topic( $jigsaw, $group );
+	my $form = $self->form( $jigsaw, $group );
 	my $quiz = $activity->{$topic}->{jigsaw}->{$form}->{quiz};
     }
 
@@ -566,8 +618,8 @@ The options (as an anon array) to the given question in the given jigsaw for the
 
 =cut
 
-    method options ( Str $location, Str $group, Int $question ) {
-	my $quiz = $self->quiz( $location, $group );
+    method options ( Str $jigsaw, Str $group, Int $question ) {
+	my $quiz = $self->quiz( $jigsaw, $group );
 	my $options = $quiz->[$question]->{options};
 	return $options || '';
     }
@@ -578,8 +630,8 @@ The number of questions in the given jigsaw for the given group.
 
 =cut
 
-    method qn ( Str $location, Str $group ) {
-	my $quiz = $self->quiz( $location, $group );
+    method qn ( Str $jigsaw, Str $group ) {
+	my $quiz = $self->quiz( $jigsaw, $group );
 	return scalar @$quiz;
     }
 
@@ -590,30 +642,31 @@ The responses of the members of the given group in the given jigsaw (as an anon 
 =cut
 
 
-    method responses ( Str $location, Str $group ) {
-	my $responses = $self->inspect( "$location/response.yaml" );
+    method responses ( Str $jigsaw, Str $group ) {
+	my $jigsaws = $self->jigsawdirs;
+	my $responses = $self->inspect( "$jigsaws/$jigsaw/response.yaml" );
 	return $responses->{$group};
     }
 
 =head3 jigsawGroups
 
-A hash ref of all the groups in the jigsaw and the names of members of the groups, keyed on groupnames. There may be duplicated names if one player did the activity twice as an 'assistant' for a group with not enough players, and missing names if a player did not do the quiz.
+A hash ref of all the groups in the given jigsaw and the names of members of the groups, keyed on groupnames. There may be duplicated names if one player did the activity twice as an 'assistant' for a group with not enough players, and missing names if a player did not do the quiz.
 
 =cut
 
-	method jigsawGroups (Str $location ) {
-		my $config = $self->jigsawConfig( $location );
+	method jigsawGroups (Str $jigsaw ) {
+		my $config = $self->config('Jigsaw', $jigsaw );
 		$config->{group};
 	}
 
 =head3 jigsawGroupMembers
 
-An hash ref of the names of the members of the given group in the given jigsaw, keyed on the roles, A..D.
+An array (was hash ref) of the names of the members of the given group in the given jigsaw, in order of the roles, A..D.
 
 =cut
 
-	method jigsawGroupMembers (Str $location, Str $group) {
-		my $groups = $self->jigsawGroups( $location );
+	method jigsawGroupMembers (Str $jigsaw, Str $group) {
+		my $groups = $self->jigsawGroups( $jigsaw );
 		my $members = $groups->{$group};
 	}
 
@@ -634,15 +687,11 @@ Ids in array, in A-D role order
 =cut
 
 
-    method idsbyRole ( Str $location, Str $group ) {
+    method idsbyRole ( Str $jigsaw, Str $group ) {
 	my $members = $self->league->members;
 	my %namedMembers = map { $_->{name} => $_ } @$members;
-	my $namesbyRole = $self->jigsawGroupMembers( $location, $group );
-	my @idsbyRole;
-	for my $role ( sort keys %$namesbyRole ) {
-		my $id = $namedMembers{ $namesbyRole->{$role} }->{id};
-		push @idsbyRole, $id;
-	}
+	my $namesbyRole = $self->jigsawGroupMembers( $jigsaw, $group );
+	my @idsbyRole = map { $namedMembers{$_}->{id} } @$namesbyRole;
 	return \@idsbyRole;
     }
 
@@ -652,8 +701,8 @@ A array ref of all the players in the (sub)jigsaw who did the the activity twice
 
 =cut
 
-	method assistants (Str $location) {
-		my $round = $self->jigsawConfig( $location );
+	method assistants (Str $jigsaw) {
+		my $round = $self->config( $jigsaw );
 		$round->{assistants};
 	}
 
@@ -663,9 +712,10 @@ An hash ref of the roles of the members of the given group in the given jigsaw, 
 
 =cut
 
-	method jigsawGroupRole (Str $location, Str $group) {
-		my $members = $self->jigsawGroupMembers( $location, $group );
-		my %roles = reverse %$members;
+	method jigsawGroupRole (Str $jigsaw, Str $group) {
+		my $members = $self->jigsawGroupMembers( $jigsaw, $group );
+		my %roles;
+		@roles{ @$members } = $self->roles->flatten;
 		return \%roles;
 	}
 
@@ -675,11 +725,12 @@ An hash ref of the roles of the members of the given group in the given jigsaw, 
 
 =cut
 
-	method id2jigsawGroupRole (Str $location, Str $group) {
-		my $member = $self->jigsawGroupMembers( $location, $group );
-		my %idedroles = map { $self->league->ided($member->{$_}) => $_ }
-						keys %$member;
-		return \%idedroles;
+	method id2jigsawGroupRole (Str $jigsaw, Str $group) {
+		my $members = $self->jigsawGroupMembers( $jigsaw, $group );
+		my @ids = map { $self->league->ided($_) } @$members;
+		my $roles = $self->roles;
+		my %id2role; @id2role{@ids} = @$roles;
+		return \%id2role;
 	}
 
 =head3 name2jigsawGroup
@@ -688,29 +739,29 @@ An array ref of the group(s) to which the given name belonged in the given jigsa
 
 =cut
 
-	method name2jigsawGroup (Str $location, Str $name) {
-		my $groups = $self->jigsawGroups( $location );
+	method name2jigsawGroup (Str $jigsaw, Str $name) {
+		my $groups = $self->jigsawGroups( $jigsaw );
 		my @memberships;
 		for my $id ( keys %$groups ) {
 			my $group = $groups->{$id};
-			my @members = values %$group;
-			push @memberships, $id if any { $_ eq $name } @members;
+			push @memberships, $id if any { $_ eq $name } @$group;
 		}
 		return \@memberships;
 	}
 
 =head3 rawJigsawScores
 
-The individual scores on the quiz of each member of the given group, keyed on their roles, no, ids, from the file called 'scores.yaml' in the given jigsaw dir. If the scores in that file have a key which is a role, handle that, but, yes, the keys of the hashref returned here are the players' ids.
+The individual scores on the given quiz of each member of the given group, keyed on their roles, no, ids, from the file called 'scores.yaml' in the given jigsaw dir. If the scores in that file have a key which is a role, handle that, but, yes, the keys of the hashref returned here are the players' ids.
 
 =cut
 
-    method rawJigsawScores (Str $location, Str $group) {
+    method rawJigsawScores (Str $round, Str $group) {
         my $data;
-	try { $data = $self->inspect("$location/scores.yaml"); }
-	    catch { warn "No scores for $group group in $location jigsaw."; };
+	my $jigsaws = $self->jigsawdirs;
+	try { $data = $self->inspect( "$jigsaws/$round/scores.yaml"); }
+	    catch { warn "No scores for $group group in jigsaw $round."; };
 	my $groupdata = $data->{letters}->{$group};
-	my $ids       = $self->idsbyRole( $location, $group );
+	my $ids       = $self->idsbyRole( $round, $group );
 	my $roles     = $self->roles;
 	my @keys;
 	if (
@@ -733,38 +784,105 @@ Points deducted for undesirable performance elements (ie Chinese use) on the qui
 
 =cut
 
-	method jigsawDeduction (Str $location, Str $group) {
-		my $data = $self->inspect( "$location/scores.yaml" );
-		try { $data = $self->inspect( "$location/scores.yaml" ); }
-		    catch { warn
-			"Deductions for $group group in $location jigsaw?" };
-		my $demerits = $data->{Chinese}->{$group};
-		return $demerits;
-	}
+    method jigsawDeduction (Str $jigsaw, Str $group) {
+	my $data;
+	my $jigsaws = $self->jigsawdirs;
+	try { $data = $self->inspect( "$jigsaws/$jigsaw/scores.yaml" ); }
+	    catch { warn
+		"Deductions for $group group in $jigsaw jigsaw?" };
+	my $demerits = $data->{Chinese}->{$group};
+	return $demerits;
+    }
 
 }
 
 
 =head2 Grades' Classwork Methods
 
-Classwork is work done in class with everyone and the teacher present. The two classwork approaches are CompComp and Groupwork. Depending on the league's approach, the methods are 'delegated' to either CompComp or Groupwork.
+Classwork is work done in class with everyone and the teacher present. Two classwork approaches are CompComp and Groupwork. Others are possible. Depending on the league's approach accessor, the methods are delegated to the appropriate Approach object.
 
 =cut
 
-role Classwork {
+class Classwork {
 	use Grades::Types qw/Results/;
 
-=head3 classwork, classworkPercent
+=head3 approach
 
-Consume either Groupwork or Classwork's total, totalPercent methods as classwork, classworkPercent.
+Delegatee handling classwork_total, classworkPercent
 
 =cut
 
-    has 'classwork' => ( is => 'ro', isa => Results, lazy => 1,
-	default => sub { shift->total } );
-    has 'classworkPercent' => ( is => 'ro', isa => Results, lazy => 1,
-	default => sub { shift->totalPercent } );
+    has 'approach' => ( is => 'ro', isa => 'Approach', required => 1,
+	    handles => [ qw/
+		points classwork_total classworkPercent / ] );
 
+}
+
+=head2 Classwork Approach
+
+Handles Classwork's classwork_total and classworkPercent methods. Calls the total or totalPercent methods of the class whose name is in the 'type' accessor.
+
+=cut
+
+class Approach {
+
+=head3 league
+
+The league (object) whose approach this is.
+
+=cut
+
+    has 'league' => (is =>'ro', isa => 'League', required => 1 );
+
+=head3 all_weeks
+
+All the weeks, or sessions or lessons for which grade data is being assembled from for the grade component.
+
+=cut
+
+    method all_weeks {
+	my $league = $self->league;
+	my $type = $league->approach;
+	my $meta = $type->meta;
+	my $total = $type->new( league => $league )->all_weeks;
+    }
+
+=head3 points
+
+Week-by-weeks, or session scores for the individual players in the league.
+
+=cut
+
+    method points (Str $week) {
+	my $league = $self->league;
+	my $type = $league->approach;
+	my $meta = $type->meta;
+	my $total = $type->new( league => $league )->points( $week );
+    }
+
+=head3 classwork_total
+
+Calls the pluginned approach's classwork_total.
+
+=cut
+
+    method classwork_total {
+	my $league = $self->league;
+	my $type = $league->approach;
+	my $total = $type->new( league => $league )->total;
+    }
+
+=head3 classworkPercent
+
+Calls the pluginned approach's classworkPercent.
+
+=cut
+
+    method classworkPercent {
+	my $league = $self->league;
+	my $type = $league->approach;
+	my $total = $type->new( league => $league )->totalPercent;
+    }
 }
 
 
@@ -774,16 +892,182 @@ The comprehension question competition is a Swiss tournament regulated 2-partner
 
 =cut
 
-role CompComp {
+class CompComp {
+    use Try::Tiny;
+    use List::MoreUtils qw/any/;
+    use Carp qw/carp/;
+    use Grades::Types qw/Results/;
 
-=head3 conversations
+=head3 league
 
-The topics of the conversations in order.
+The league (object) which is doing CompComp.
 
 =cut
 
-    has 'conversations' => ( is => 'ro', isa => 'Maybe[ArrayRef[Str]]',
-	lazy => 1, default => sub { shift->league->yaml->{conversations} } );
+	has 'league' => (is =>'ro', isa => 'League', required => 1,
+				handles => [ 'inspect' ] );
+
+=head3 compcompdirs
+
+The directory under which there are subdirectories containing data for the CompComp rounds.
+
+=cut
+
+    has 'compcompdirs' => (is => 'ro', isa => 'Str', lazy_build => 1 );
+    method _build_compcompdirs { 
+	my $leaguedir = $self->league->leagues . "/" . $self->league->id;
+	my $compcompdir = $leaguedir .'/' . shift->league->yaml->{compcomp};
+    }
+
+=head3 all_weeks
+
+The pair conversations over the series (semester). This method returns an arrayref of the numbers of the conversations, in numerical order, of the form, [1, 3 .. 7, 9, 10 .. 99 ]. Results are in sub directories of the same name, under compcompdirs.
+
+=cut
+
+    has 'all_weeks' =>
+      ( is => 'ro', isa => 'Maybe[ArrayRef[Int]]', lazy_build => 1 );
+    method _build_all_weeks {
+        my $dir = $self->compcompdirs;
+        my @subdirs = grep { -d } glob "$dir/*";
+        [ sort { $a <=> $b } map m/^$dir\/(\d+)$/, @subdirs ];
+    }
+
+=head3 config
+
+The round.yaml file with data about the CompComp activity for the given conversation (directory.)
+
+=cut
+
+    method config( Str $round) {
+	my $comp = $self->compcompdirs;
+	my $file = "$comp/$round/round.yaml";
+        my $config;
+	try { $config = $self->inspect($file) }
+	    catch { warn "No config file for CompComp round $round at $file" };
+	return $config;
+    }
+
+=head3 tables
+
+The tables with players according to their roles for the given round. In the 'pairs' mapping in the config file.
+
+=cut
+
+    method tables ( Str $round ) {
+	my $config = $self->config($round);
+	return $config->{pairs};
+    }
+
+=head3 compQuizfile
+
+The file system location of the file with the quiz questions and answers for the given CompComp activity.
+
+=cut
+
+    method compQuizfile ( Str $round ) {
+	my $config = $self->config($round);
+	return $config->{text};
+    }
+
+=head3 compQuiz
+
+The compQuiz questions (as an anon array) in the given CompComp activity for the given table.
+
+=cut
+
+    method compQuiz ( Str $round, Str $table ) {
+	my $quizfile = $self->compQuizfile($round);
+	my $activity;
+	try { $activity = $self->inspect( $quizfile ) }
+	    catch { warn "No $quizfile CompComp content file" };
+	my $topic = $self->compTopic( $round, $table );
+	my $form = $self->compForm( $round, $table );
+	my $quiz = $activity->{$topic}->{compcomp}->{$form}->{quiz};
+	carp "No $topic, $form quiz in $quizfile," unless $quiz;
+	return $quiz;
+    }
+
+=head3 compTopic
+
+The topic of the quiz in the given CompComp round for the given table. Each table has one and only one quiz.
+
+=cut
+
+    method compTopic ( Str $round, Str $table ) {
+	my $config = $self->config($round);
+	my $activity = $config->{activity};
+	for my $topic ( keys %$activity ) {
+	    my $forms = $activity->{$topic};
+	    for my $form ( keys %$forms ) {
+		my $tables = $forms->{$form};
+		return $topic if any { $_ eq $table } @$tables;
+	    }
+	}
+	carp "Topic? No quiz at $table table in round $round,";
+	return;
+    }
+
+=head3 compForm
+
+The form of the quiz in the given CompComp round for the given table. Each table has one and only one quiz.
+
+=cut
+
+    method compForm ( Str $round, Str $table ) {
+	my $config = $self->config($round);
+	my $activity = $config->{activity};
+	for my $topic ( keys %$activity ) {
+	    my $forms = $activity->{$topic};
+	    for my $form ( keys %$forms ) {
+		my $tables = $forms->{$form};
+		return $form if any { $_ eq $table } @$tables;
+	    }
+	}
+	carp "Form? No quiz at $table table in round $round,";
+	return;
+    }
+
+=head3 compqn
+
+The number of questions in the given CompComp quiz for the given pair.
+
+=cut
+
+    method compqn ( Str $round, Str $table ) {
+	my $quiz = $self->compQuiz( $round, $table );
+	return scalar @$quiz;
+    }
+
+=head3 idsbyCompRole
+
+Ids in array, in White, Black role order
+
+=cut
+
+
+    method idsbyCompRole ( Str $round, Str $table ) {
+	my $members = $self->league->members;
+	my %namedMembers = map { $_->{name} => $_ } @$members;
+	my $config = $self->config( $round );
+	my $pair = $config->{pair}->{$table};
+	my @idsbyRole = @$pair{qw/White Black/};
+	return \@idsbyRole;
+    }
+
+=head3 compResponses
+
+The responses of the members of the given pair in the given round (as an anon hash keyed on the ids of the members). In a file in the CompComp round directory called 'response.yaml'.
+
+=cut
+
+
+    method compResponses ( Str $round, Str $table ) {
+	my $comp = $self->compcompdirs;
+	my $file = "$comp/$round/response.yaml";
+	my $responses = $self->inspect( $file );
+	return $responses->{$table};
+    }
 
 =head3 opponents
 
@@ -792,10 +1076,10 @@ The ids of opponents of the players in the given conversation.
 =cut
 
     method opponents ( Str $round ) {
-	my $league = $self->league->id;
-	my $file = "$league/$round/opponent.yaml";
+	my $comp = $self->compcompdirs;
+	my $file = "$comp/$round/opponent.yaml";
 	my $opponents = $self->inspect( $file );
-}
+    }
 
 
 =head3 correct
@@ -805,15 +1089,15 @@ The number of questions correct in the given conversation.
 =cut
 
     method correct ( Str $round ) {
-	my $league = $self->league->id;
-	my $file = "$league/$round/correct.yaml";
+	my $comp = $self->compcompdirs;
+	my $file = "$comp/$round/correct.yaml";
 	my $correct = $self->inspect( $file );
-}
+    }
 
 
 =head3 points
 
-The points of the players in the given conversation.
+The points of the players in the given conversation. 5 for a Bye, 1 for Late, 0 for Unpaired, 1 for a non-numerical number correct result, 5 for more correct, 3 for less correct, 4 for the same number correct. Transfers' results are computed from their results in the same round in their old league.
 
 =cut
 
@@ -856,6 +1140,10 @@ The points of the players in the given conversation.
 		$points->{$player} = 0;
 		next;
 	    }
+	    if ( $correct->{$player} !~ m/^\d+$/ ) {
+		$points->{$player} = 1;
+		next;
+	    }
 	    if ( not defined $theircorrect ) {
 		$points->{$player} = 5;
 		next;
@@ -867,14 +1155,15 @@ The points of the players in the given conversation.
     }
 
 
-=head3 totalcomp
+=head3 total
 
 The total over the conversations over the series.
 
 =cut
 
-    method totalcomp {
-	my $rounds = $self->conversations;
+    has 'total' => ( is => 'ro', isa => Results, lazy_build => 1 );
+    method _build_total {
+	my $rounds = $self->all_weeks;
 	my $members = $self->league->members;
 	my @ids = map { $_->{id} } @$members;
 	my $totals;
@@ -890,16 +1179,17 @@ The total over the conversations over the series.
     }
 
 
-=head3 compwork
+=head3 totalPercent
 
 The total over the conversations over the series expressed as a percentage of the possible score. The average should be 80 percent if every player participates in every comp.
 
 =cut
 
-    method compwork {
-	my $rounds = $self->conversations;
+    has 'totalPercent' => ( is => 'ro', isa => Results, lazy_build => 1 );
+    method _build_totalPercent {
+	my $rounds = $self->all_weeks;
 	my $n = @$rounds;
-	my $totals = $self->totalcomp;
+	my $totals = $self->total;
 	my %percentages = map { $_ => $totals->{$_} * 100 / (5*$n) } keys %$totals;
 	return \%percentages;
     }
@@ -908,15 +1198,29 @@ The total over the conversations over the series expressed as a percentage of th
 
 
 =head2 Grades' Groupwork Methods
+
+The idea of Cooperative Learning, giving individual members of a group all the same score, is that individuals are responsible for the behavior of the other members of the group. Absences and tardies of individual members can lower the scores of the members who are present.
+
+Also, grading to the curve is employed so that the average classwork grade over a session for each student is 80 percent.
+
 =cut
 
-role Groupwork {
+class Groupwork {
 	use List::Util qw/max min sum/;
 	use List::MoreUtils qw/any/;
 	use Carp;
 	use POSIX;
-	use Grades::Types qw/Beancans Card/;
+	use Grades::Types qw/Beancans Card Results/;
 	use Try::Tiny;
+
+=head3 league
+
+The league (object) which is doing groupwork.
+
+=cut
+
+	has 'league' => (is =>'ro', isa => 'League', required => 1,
+				handles => [ 'inspect' ] );
 
 =head3 groupworkdirs
 
@@ -924,8 +1228,13 @@ The directory under which there are subdirectories containing data for the group
 
 =cut
 
-    has 'groupworkdirs' => (is => 'ro', isa => 'Str',
-	lazy => 1, default => sub { shift->league->yaml->{groupwork} } );
+    has 'groupworkdirs' => (is => 'ro', isa => 'Str', lazy_build => 1);
+    method _build_groupworkdirs {
+	my $league = $self->league->id;
+	my $leaguedir = $self->league->leagues . "/" . $league;
+	my $basename = shift->league->yaml->{groupwork} || "classwork";
+	my $groupworkdirs = $leaguedir .'/' . $basename;
+	}
 
 =head3 series
 
@@ -978,14 +1287,14 @@ The files containing classwork points (beans) awarded to beancans.
 		return $files;
 	}
 
-=head3 allweeks
+=head3 all_weeks
 
 The weeks (an array ref of integers) in which beans were awarded.
 
 =cut
 
-	has 'allweeks' => ( is => 'ro', isa => 'ArrayRef', lazy_build => 1 );
-	method _build_allweeks {
+	has 'all_weeks' => ( is => 'ro', isa => 'ArrayRef', lazy_build => 1 );
+	method _build_all_weeks {
 		my $files = $self->allfiles;
 		my $weeks = [ map { m|/(\d+)\.yaml$|; $1 } @$files ];
 		croak "No classwork weeks: @$weeks" unless @$weeks;
@@ -1000,7 +1309,7 @@ The last week in which beans were awarded.
 
 	has 'lastweek' => ( is => 'ro', isa => 'Int', lazy_build => 1 );
 	method _build_lastweek {
-		my $weeks = $self->allweeks;
+		my $weeks = $self->all_weeks;
 		max @$weeks;
 	}
 
@@ -1013,7 +1322,7 @@ The beans awarded to the beancans in the individual cards over the weeks of the 
 	has 'data' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
 	method _build_data {
 		my $files = $self->allfiles;
-		my $weeks = $self->allweeks;
+		my $weeks = $self->all_weeks;
 		+{ map { $weeks->[$_] => $self->inspect( $files->[$_] ) }
 			0..$#$weeks };
 	}
@@ -1346,13 +1655,13 @@ Totals for the beancans over the given session. TODO Why '+=' in sessiontotal?
 		\%sessiontotal;
 	}
 
-=head3 groupworkPercent
+=head3 totalPercent
 
 Running totals for individual ids out of 100, over the whole series.
 
 =cut
-
-	method groupworkPercent {
+	has 'totalPercent' => ( is => 'ro', isa => Results, lazy_build => 1 );
+	method _build_totalPercent {
 		my $members = $self->league->members;
 		my $series = $self->series;
 		my (%grades);
@@ -1390,15 +1699,461 @@ Running totals for individual ids out of 100, over the whole series.
 		\%grades;
 	}
 
-=head3 totalPercent
+}
 
-A generic name for groupworkPercent. Suitable for when Classwork delegates classwork in Groupwork approach.
+=head2 Grades' GroupworkNoFault Approach
+
+Unlike the Groupwork approach, GroupworkNoFault does not penalize members of a group who are present for the absence of other members who are not present or tardy. Instead the individual members not present get a grade of 0 for that class.
+
+Also, no scaling of the grades (a group's merits) takes place. 
 
 =cut
 
-    method totalPercent { $self->groupworkPercent }
+class GroupworkNoFault {
+	use List::Util qw/max min sum/;
+	use List::MoreUtils qw/any/;
+	use Carp;
+	use POSIX;
+	use Grades::Types qw/Beancans TortCard PlayerNames Results/;
+	use Try::Tiny;
+
+=head3 league
+
+The league (object) which is doing groupwork.
+
+=cut
+
+	has 'league' => (is =>'ro', isa => 'League', required => 1,
+				handles => [ 'inspect' ] );
+
+=head3 classMax
+
+The maximum score possible in individual lessons for classwork.
+
+=cut
+
+	has 'classMax' => (is => 'ro', isa => 'Int', lazy => 1, required => 1,
+			default => sub { shift->league->yaml->{classMax} } );
+
+=head3 groupworkdirs
+
+The directory under which there are subdirectories containing data for the groupwork sessions.
+
+=cut
+
+    has 'groupworkdirs' => (is => 'ro', isa => 'Str', lazy_build => 1);
+    method _build_groupworkdirs {
+	my $league = $self->league->id;
+	my $leaguedir = $self->league->leagues . "/" . $league;
+	my $basename = shift->league->yaml->{groupwork} || "classwork";
+	my $groupworkdirs = $leaguedir .'/' . $basename;
+	}
+
+=head3 series
+
+The sessions over the series (semester) in which there was a different grouping (beancans) of players. Everyone in the same beancan for one session gets the same number of beans (classwork score.) This method returns an arrayref of the names of the sessions, in numerical order, of the form, [1, 3 .. 7, 9, 10 .. 99 ]. Results are in sub directories of the same name, under groupworkdirs.
+
+=cut
+
+    has 'series' =>
+      ( is => 'ro', isa => 'Maybe[ArrayRef[Int]]', lazy_build => 1 );
+    method _build_series {
+        my $dir = $self->groupworkdirs;
+        my @subdirs = grep { -d } glob "$dir/*";
+        [ sort { $a <=> $b } map m/^$dir\/(\d+)$/, @subdirs ];
+    }
+
+=head3 beancanseries
+
+The different beancans for each of the sessions in the series. In the directory for each session of the series, there is a file called beancans.yaml, containing mappings of a beancan name to a sequence of PlayerNames, the members of the beancan.
+
+=cut
+
+    has 'beancanseries' => ( is => 'ro', isa => Beancans, lazy_build => 1 );
+    method _build_beancanseries {
+	my $dir = $self->groupworkdirs;
+        my $series = $self->series;
+        my $league = $self->league->id;
+	my %beancans;
+	try { %beancans = 
+	    map { $_ => $self->inspect("$dir/$_/beancans.yaml") } @$series }
+		catch { local $" = ', ';
+		    warn "Missing beancans in $league $dir @$series sessions" };
+	return \%beancans;
+    }
+
+=head3 allfiles
+
+The files containing classwork points (beans) awarded to beancans. 
+
+=cut
+
+
+	has 'allfiles'  => ( is => 'ro', isa => 'ArrayRef', lazy_build => 1 );
+	method _build_allfiles {
+		my $dir = $self->groupworkdirs;
+		my $series = $self->series;
+		my $league = $self->league->id;
+		my $files = [ map { grep m|/(\d+)\.yaml$|,
+					glob "$dir/$_/*.yaml" } @$series ];
+		croak "${league}'s @$series files: @$files?" unless @$files;
+		return $files;
+	}
+
+=head3 all_weeks
+
+The weeks (an array ref of integers) in which beans were awarded.
+
+=cut
+
+	has 'all_weeks' => ( is => 'ro', isa => 'ArrayRef', lazy_build => 1 );
+	method _build_all_weeks {
+		my $files = $self->allfiles;
+		my $weeks = [ map { m|/(\d+)\.yaml$|; $1 } @$files ];
+		croak "No classwork weeks: @$weeks" unless @$weeks;
+		return $weeks;
+	}
+
+=head3 lastweek
+
+The last week in which beans were awarded.
+
+=cut
+
+	has 'lastweek' => ( is => 'ro', isa => 'Int', lazy_build => 1 );
+	method _build_lastweek {
+		my $weeks = $self->all_weeks;
+		max @$weeks;
+	}
+
+=head3 data
+
+The beans awarded to the beancans in the individual cards over the weeks of the series (semester.)
+
+=cut
+
+	has 'data' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
+	method _build_data {
+		my $files = $self->allfiles;
+		my $weeks = $self->all_weeks;
+		+{ map { $weeks->[$_] => $self->inspect( $files->[$_] ) }
+			0..$#$weeks };
+	}
+
+=head3 card
+
+Classwork beans for each beancan for the given week
+
+=cut
+
+	method card (Num $week) {
+		my $card = $self->data->{$week};
+		croak "Week $week card probably has undefined or non-numeric Merit, Absence, Tardy scores, or possibly illegal beancan."
+		    unless is_TortCard( $card );
+		return $card;
+	}
+
+=head3 beancans
+
+A hashref of all the beancans in a given session with the names of the members of each beancan. The number, composition and names of the beancans may change from one session of the series to the next.
+	
+Players in one beancan all get the same Groupwork grade for that session. The beancan members may be the same as the members of the class group, who work together in class, or may be individuals. Usually in a big class, the beancans will be the same as the groups, and in a small class they will be individuals.
+
+Players in the 'Absent' beancan all get a grade of 0 for the session.
+
+Rather than refactor the class to work with individuals rather than groups, and expand some methods (?) to fall back to league members if it finds them in the weekly files instead of groups, I decided to introduce another file, beancans.yaml, and change all variable and method names mentioning group to beancan.
+
+=cut 
+
+	method beancans (Str $session) { $self->beancanseries->{$session}; }
+
+=head3 active
+
+Given a session, returns the active beancans, ie all but the 'Absent' beancan.
+
+=cut
+
+	method active (Str $session) {
+		my $beancans = $self->beancans($session);
+		my %active = %$beancans;
+		delete $active{Absent};
+		return \%active;
+	}
+
+=head3 files
+
+Given a session, returns the files containing beans for the session of form, $session/\d+\.yaml$
+
+=cut
+
+	method files (Str $session) {
+		my $allfiles = $self->allfiles;
+		[ grep m|/$session/\d+\.yaml$|, @$allfiles ];
+	}
+
+=head3 weeks
+
+Given a session, returns the weeks (an array ref of integers) in which beans were awarded in the session.
+
+=cut
+
+	method weeks (Str $session) {
+		my $files = $self->files($session);
+		[ map { m|(\d+)\.yaml$|; $1 } @$files ];
+	}
+
+=head3 week2session
+
+	$Groupwork->week2session(15) # fourth
+
+Given the name of a week, return the name of the session it is in.
+
+=cut
+
+	method week2session (Num $week) {
+		my $sessions = $self->series;
+		my %sessions2weeks = map { $_ => $self->weeks($_) } @$sessions;
+		while ( my ($session, $weeks) = each %sessions2weeks ) {
+			return $session if any { $_ eq $week } @$weeks;
+		}
+		croak "Week $week in none of @$sessions sessions.\n";
+	}
+
+=head3 names2beancans
+
+A hashref of names of members of beancans (players) and the beancans they were members of in a given session.
+
+=cut
+
+	method names2beancans (Str $session) {
+		my $beancans = $self->beancans($session);
+		my %beancansreversed;
+		while ( my ($beancan, $names) = each %$beancans ) {
+			for my $name ( @$names ) {
+			croak
+	"$name in $beancan beancan and other beancan in $session session.\n"
+					if exists $beancansreversed{$name};
+				$beancansreversed{$name} = $beancan;
+			}
+		}
+		\%beancansreversed;
+	}
+
+=head3 name2beancan
+
+	$Groupwork->name2beancan( $week, $playername )
+
+Given the name of a player, the name of the beancan they were a member of in the given week.
+
+=cut
+
+	method name2beancan (Num $week, Str $name) {
+		croak "Week $week?" unless defined $week;
+		my $session = $self->week2session($week);
+		my $beancans = $self->beancans($session);
+		my @names; push @names, @$_ for values %$beancans;
+		my @name2beancans;
+		while ( my ($beancan, $names) = each %$beancans ) {
+			push @name2beancans, $beancan for grep /^$name$/, @$names;
+		}
+		croak "$name not in exactly one beancan in $session session.\n"
+					unless @name2beancans == 1;
+		shift @name2beancans;
+	}
+
+=head3 beancansNotInCard
+
+	$Groupwork->beancansNotInCard( $beancans, $card, 3)
+
+Test all beancans, except Absent, exist in the beancans listed on the card for the week.
+
+=cut
+
+	method beancansNotInCard (HashRef $beancans, HashRef $card, Num $week) {
+		my %common; $common{$_}++ for keys %$beancans, keys %$card;
+		my @notInCard = grep { $common{$_} != 2 and $_ ne 'Absent' }
+						keys %$beancans;
+		croak "@notInCard beancans not in week $week data" if
+					@notInCard;
+	}
+
+=head3 beancanDataOnCard
+
+	$Groupwork->beancansNotInCard( $beancans, $card, 3)
+
+Test all of the beancans, except Absent, have all the points due them for the week. Duplicates the check done by the TortCard type.
+
+=cut
+
+	method beancanDataOnCard (HashRef $beancans, HashRef $card, Num $week) {
+		my @noData = grep { my $beancan = $card->{$_};
+			$_ ne 'Absent' and ( 
+				not defined $beancan->{merits} or 
+					 $beancan->{absent} and not
+					 is_PlayerNames( $beancan->{absent} )
+				    ) }
+				keys %$beancans;
+		croak "@noData beancans missing data in week $week" if @noData;
+	}
+
+=head3 merits
+
+The points the beancans gained for the given week.
+
+=cut
+
+	method merits (Num $week) {
+		my $session = $self->week2session($week);
+		my $beancans = $self->active($session);
+		my $card = $self->card($week);
+		$self->beancansNotInCard($beancans, $card, $week);
+		$self->beancanDataOnCard($beancans, $card, $week);
+		+{ map { $_ => $card->{$_}->{merits} } keys %$beancans };
+	}
+
+=head3 absent
+
+The players absent from each beancan in the given week.
+
+=cut
+
+	method absent (Num $week) {
+		my $session = $self->week2session($week);
+		my $beancans = $self->active($session);
+		my $card = $self->card($week);
+		$self->beancansNotInCard($beancans, $card, $week);
+		$self->beancanDataOnCard($beancans, $card, $week);
+		+{ map { $_ => $card->{$_}->{absent} } keys %$beancans };
+	}
+
+=head3 points
+
+The merits the beancans gained for the given week, except for those members who were absent, and who get zero. Keyed on player id.
+
+=cut
+
+	method points (Num $week) {
+	    my $members = $self->league->members;
+	    my %points;
+	    for my $member ( @$members ) {
+		my $name = $member->{name};
+		my $id = $member->{id};
+		my $beancan = $self->name2beancan( $week, $name );
+		my $absent = $self->absent($week)->{$beancan};
+		unless ( $absent and ref $absent eq 'ARRAY' ) {
+		    $points{$id} = $self->merits($week)->{$beancan}; 
+		}
+		else {
+		    $points{$id} = ( any { $name eq $_ } @$absent ) ?
+			2 : $self->merits($week)->{$beancan};
+		}
+	    }
+	    return \%points;
+	}
+
+=head3 grades4session
+
+Totals for the beancans over the given session.
+
+=cut
+
+    method grades4session (Str $session) {
+	my $weeks = $self->weeks($session);
+	my $beancans = $self->beancans($session);
+	my %tally;
+	for my $week ( @$weeks ) {
+	    my $grade = $self->merits($week);
+	    my $absent = $self->absent($week);
+	    for my $can ( keys %$beancans ) {
+		my $members = $beancans->{$can};
+		if ( $can =~ m/absent/i ) {
+		    my @missing = @$members;
+			$tally{$_} = 0 for @missing;
+			next;
+		}
+		carp "$can not in week $week Groupwork"
+			unless defined $grade->{$can};
+		my $absent = $self->absent($week)->{$can};
+		for my $member ( @$members ) {
+		    $tally{$member} += $grade->{$can}
+			unless any { $member eq $_ } @$absent;
+		}
+	    }
+	}
+	\%tally;
+    }
+
+=head3 total
+
+Totals for individual ids, over the whole series.
+
+=cut
+
+    has 'total' => ( is => 'ro', isa => Results, lazy_build => 1 );
+    method _build_total {
+	my $members = $self->league->members;
+	my $series = $self->series;
+	my (%grades);
+	for my $session ( @$series ) {
+	    my %presentMembers;
+	    my $can = $self->names2beancans($session);
+	    my $grade = $self->grades4session($session);
+	    for my $member ( @$members ) {
+		my $name = $member->{name};
+		my $id = $member->{id};
+		my $beancan = $can->{$member->{name}};
+		if ( defined $beancan ) {
+		    my $grade = $grade->{$name};
+		    carp $member->{name} .
+			" not in session $session"
+			unless defined $grade;
+		    $grades{$id} += $grade;
+		} else {
+		    carp $member->{name} .
+		    "'s beancan in session $session?"
+		}
+	    }
+	}
+	for my $member ( @$members ) {
+	    my $id = $member->{id};
+	    if ( exists $grades{$id} ) {
+		$grades{$id} = min( 100, $grades{$id} );
+	    }
+	    else {
+		my $name = $member->{name};
+		carp "$name $id Groupwork?";
+		$grades{$id} = 0;
+	    }
+	}
+	\%grades;
+    }
+
+=head3 totalPercent
+
+Running totals for individual ids out of 100, over the whole series.
+
+=cut
+	has 'totalPercent' => ( is => 'ro', isa => Results, lazy_build => 1 );
+	method _build_totalPercent {
+		my $members = $self->league->members;
+		my $weeks = $self->all_weeks;
+		my $weeklyMax = $self->classMax;
+		my $totalMax = $weeklyMax * @$weeks;
+		my $grades = $self->total;
+		my $series = $self->series;
+		my %percent;
+		for my $member ( @$members ) {
+		    my $id = $member->{id};
+		    my $score = 100 * $grades->{$id} / $totalMax ;
+		    warn "$member->{name}: ${id}'s classwork score of $score"
+			if $score > 100;
+		    $percent{$id} = $score;
+		}
+		return \%percent;
+	}
 
 }
+
 
 =head2 Grades' Exams Methods
 =cut
@@ -1409,18 +2164,19 @@ role Exams {
 	use Carp;
 	use Grades::Types qw/Exam/;
 
-=head3 examdir
+=head3 examdirs
 
 The directory where the exams are.
 
 =cut
 
-	has 'examdirs' => (is => 'ro', isa => 'Str', lazy_build => 1);
-	method _build_examdirs {
-		my $league = $self->league->id;
-		my $data = $self->league->yaml;
-		my $examdirs = $data->{exams} || "$league/exams"
-	}
+    has 'examdirs' => (is => 'ro', isa => 'Str', lazy_build => 1);
+    method _build_examdirs {
+	my $league = $self->league->id;
+	my $leaguedir = $self->league->leagues . "/" . $league;
+	my $basename = shift->league->yaml->{jigsaw} || "exams";
+	my $examdirs = $leaguedir .'/' . $basename;
+    }
 
 =head3 examids
 
@@ -1497,7 +2253,7 @@ A hash ref of the ids of the players and arrays of their results over the exam s
 	    my $max      = $self->examMax;
 	    for my $playerid ( @playerids ) {
 		my $result = $exam->{$playerid};
-		carp "No $id exam results for $playerid,"
+		carp "No exam $id results for $playerid,"
 		  unless defined $result;
 		croak "${playerid}'s $result greater than exam max, $max"
 		  if defined $result and $result > $max;
@@ -1565,13 +2321,14 @@ A hash ref of the ids of the players and their total score on exams, expressed a
 
 =cut
 
-	has 'examPercent' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
-	method _build_examPercent {
-		my $grades = $self->examResultsasPercent;
-		+{ map { my $numbers=$grades->{$_};
-			$_ => sum(@$numbers)/@{$numbers} }
-					keys %$grades };
-	}
+    has 'examPercent' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
+    method _build_examPercent {
+	my $grades = $self->examResultsasPercent;
+	my %totals = map {
+		my $numbers=$grades->{$_};
+		$_ => sum(@$numbers)/@{$numbers} } keys %$grades;
+	return \%totals;
+    }
 
 }
 
@@ -1579,10 +2336,32 @@ A hash ref of the ids of the players and their total score on exams, expressed a
 =head2 Grades' Core Methods
 =cut
 
-class Grades with Homework with CompComp with Classwork with Exams with Jigsaw {
-
+class Grades with Homework with Exams with Jigsaw
+{
+#    with 'Jigsaw'
+#	=> { -alias => { config => 'jigsaw_config' }, -excludes => 'config' };
 	use Carp;
 	use Grades::Types qw/Weights/;
+
+=head3 classwork
+
+An accessor for the object that handles classwork methods. Required at construction time.
+
+=cut
+
+	has 'classwork' => ( is => 'ro', isa => 'Classwork', required => 1,
+		handles => [ 'points',
+		    'classwork_total', 'classworkPercent' ] );
+
+=head3 config
+
+The possible grades config files. Including Jigsaw, CompComp.
+
+=cut
+
+	method config ( $role, $round ) {
+	    my $config = "${role}::config"; $self->$config( $round );
+	}
 
 =head3 league
 
@@ -1592,7 +2371,6 @@ The league (object) whose grades these are.
 
 	has 'league' => (is =>'ro', isa => 'League', required => 1,
 				handles => [ 'inspect' ] );
-
 
 =head3 weights
 
