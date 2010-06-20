@@ -1,13 +1,17 @@
 package Grades;
+BEGIN {
+  $Grades::VERSION = '0.11';
+}
 
-#Last Edit: 2010  6月 19, 16時04分51秒
-#$Id: /loc/ttb/beans/trunk/lib/Grades.pm 5848 2010-06-19T09:54:22.281646Z drbean  $
-
-our $VERSION = 0.08;
+#Last Edit: 2010  6月 19, 19時39分39秒
+#$Id: /loc/ttb/beans/trunk/lib/Grades.pm 5872 2010-06-19T11:43:57.366754Z drbean  $
 
 use MooseX::Declare;
 
 package Grades::Script;
+BEGIN {
+  $Grades::Script::VERSION = '0.11';
+}
 use Moose;
 with 'MooseX::Getopt';
 

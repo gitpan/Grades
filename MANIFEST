@@ -6,7 +6,6 @@ MANIFEST
 MANIFEST.SKIP
 MANIFEST.SKIP~
 META.yml
-Makefile.PL
 README
 beans.conf
 dist.ini
@@ -14,6 +13,7 @@ dist.ini~
 lib/Grades.pm
 lib/Grades.pm~
 lib/Grades/Types.pm
+lib/Grades/Types.pm~
 repl.rc
 script_files/beans
 script_files/beans_cgi.pl
@@ -34,8 +34,10 @@ script_files/id2name
 script_files/rewriteteam.pl
 script_files/rolesrc
 script_files/scantron.pl
+script_files/scantron.pl~
 script_files/score_homework.pl
 script_files/score_jigsaw.pl
+script_files/score_jigsaw.pl~
 t/00-load.t
 t/02pod.t
 t/03podcoverage.t

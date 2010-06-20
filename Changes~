@@ -1,8 +1,13 @@
 ---
+version: 0.11
+date: 日  6月 20 14:35:38 CST 2010
+changes:
+  - Grades, Classwork delegate approach to CompComp or Groupwork objects.
+---
 version: 0.10
 date: 六  6月 19 18:03:17 CST 2010
 changes:
-  - Grades, Classwork delegate methods to CompComp or Groupwork objects.
+  - Grades, Classwork delegate approach to CompComp or Groupwork objects.
   - Try::Tiny exception blocks
   - Work on making grading CompComp, Exams easier with scripts.
 0.07 2010  2月 01, 10時30分50秒
