@@ -1,6 +1,6 @@
 package Grades::Types;
 BEGIN {
-  $Grades::Types::VERSION = '0.11';
+  $Grades::Types::VERSION = '0.12';
 }
 
 use List::MoreUtils qw/all/;

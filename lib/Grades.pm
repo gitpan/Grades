@@ -1,16 +1,16 @@
 package Grades;
 BEGIN {
-  $Grades::VERSION = '0.11';
+  $Grades::VERSION = '0.12';
 }
 
-#Last Edit: 2010  6月 19, 19時39分39秒
-#$Id: /loc/ttb/beans/trunk/lib/Grades.pm 5872 2010-06-19T11:43:57.366754Z drbean  $
+#Last Edit: 2010  6月 29, 16時34分45秒
+#$Id: /loc/ttb/beans/trunk/lib/Grades.pm 5912 2010-06-30T03:52:15.442820Z drbean  $
 
 use MooseX::Declare;
 
 package Grades::Script;
 BEGIN {
-  $Grades::Script::VERSION = '0.11';
+  $Grades::Script::VERSION = '0.12';
 }
 use Moose;
 with 'MooseX::Getopt';
@@ -2338,6 +2338,7 @@ A hash ref of the ids of the players and their total score on exams, expressed a
 
 
 =head2 Grades' Core Methods
+
 =cut
 
 class Grades with Homework with Exams with Jigsaw
@@ -2346,6 +2347,21 @@ class Grades with Homework with Exams with Jigsaw
 #	=> { -alias => { config => 'jigsaw_config' }, -excludes => 'config' };
 	use Carp;
 	use Grades::Types qw/Weights/;
+
+=head3 BUILDARGS
+
+Have Moose find out the classwork approach the league has adopted and create an object of that approach for the classwork accessor. This is preferable to requiring the user to create the object and pass it at construction time.
+
+=cut
+
+    around BUILDARGS (ClassName $class: HashRef $args) {
+        my $league = $args->{league} or die "$args->{league} league?";
+        my $approach = Approach->new( league => $league ) or die "approach?";
+        my $classwork = Classwork->new( approach => $approach ) or die "classwork?";
+        $args->{classwork} = $classwork;
+        return $class->$orig({ league => $league, classwork => $classwork });
+    }
+    # around BUILDARGS(@args) { $self->$orig(@args) }
 
 =head3 classwork
 

@@ -12,7 +12,8 @@ use Grades;
 my $l = League->new( leagues => 't', id => 'emile' );
 my $approach = Approach->new( league => $l );
 my $classwork = Classwork->new( approach => $approach );
-my $g = Grades->new( league => $l, classwork => $classwork );
+# my $g = Grades->new( league => $l, classwork => $classwork );
+my $g = Grades->new({ league => $l });
 
 # groupwork
 
@@ -134,4 +135,4 @@ is_deeply( $g->examids, [ 1 .. 4 ], 'examids' );
 
 my $c = CompComp->new( league => $l );
 is( $c->compcompdirs, 't/emile/comp', 'compcompdirs' );
-is_deeply( $c->conversations, [ 1..2 ], 'conversations' );
+is_deeply( $c->all_weeks, [ 1..2 ], 'conversations' );
