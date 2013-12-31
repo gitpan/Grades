@@ -9,7 +9,7 @@ build_requires:
 configure_requires:
   Module::Build: 0.3601
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 3.101461, CPAN::Meta::Converter version 2.101461'
+generated_by: 'Dist::Zilla version 4.300023, CPAN::Meta::Converter version 2.120921'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -17,6 +17,10 @@ meta-spec:
 name: Grades
 requires:
   Carp: 0
+  Cwd: 0
+  File::Basename: 0
+  Getopt::Long: 0
+  IO::All: 0
   List::MoreUtils: 0
   List::Util: 0
   Moose: 0
@@ -26,10 +30,15 @@ requires:
   MooseX::Types: 0
   MooseX::Types::Moose: 0
   POSIX: 0
+  Pod::Usage: 0
   Scalar::Util: 0
+  Text::Template: 0
   Try::Tiny: 0
   YAML: 0
+  perl: v5.10.0
+  strict: 0
+  warnings: 0
 resources:
   homepage: http://search.cpan.org/dist/Grades/
   repository: http://svn.openfoundry.org/ttb/beans
-version: 0.12
+version: 0.14

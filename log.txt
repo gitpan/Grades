@@ -1,0 +1,3 @@
+no_payout, demerits, favor, maxDemerit, meritDemerit in_GroupworkNoFault.
+
+plan tests => 47;

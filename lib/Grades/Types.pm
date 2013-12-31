@@ -1,6 +1,6 @@
 package Grades::Types;
-BEGIN {
-  $Grades::Types::VERSION = '0.12';
+{
+  $Grades::Types::VERSION = '0.14';
 }
 
 use List::MoreUtils qw/all/;
@@ -8,7 +8,9 @@ use List::MoreUtils qw/all/;
 use MooseX::Types -declare =>
 	[ qw/PlayerName PlayerNames AbsenteeNames PlayerId Member Members
 		Results
-		HomeworkResult HomeworkRound HomeworkRounds
+		HomeworkResult
+		HomeworkPoints Cutpoints HomeworkWork HomeworkWorks
+		HomeworkRound HomeworkRounds RoundsResults
 		Beancans Card TortCard
 		Exam
 		Weights/ ];
@@ -77,11 +79,11 @@ subtype AbsenteeNames, as Maybe[ PlayerNames ], message
 
 =head2 PlayerId
 
-A string of digits, with possibly a letter in front.
+A string of digits or underscore, with possibly a letter in front.
 
 =cut
 
-subtype PlayerId, as Str, where { $_ =~ m/^[a-zA-Z]?[0-9]+$/ };
+subtype PlayerId, as Str, where { $_ =~ m/^[a-zA-Z]?[0-9_]+$/ };
 
 =head2 Member
 
@@ -106,7 +108,7 @@ subtype Members,
 
 =head2 Results
 
-A number for each playerId.
+A number or the string 'transfer' for each playerId.
 
 =cut
 
@@ -116,8 +118,9 @@ subtype Results,
 	    my $results = $_;
 	    all {
 		my $player = $_;
-		PlayerId->check( $player ) and 
-		Num->check( $results->{$player} )
+		PlayerId->check( $player ) and (
+		Num->check( $results->{$player} ) or
+		$results->{$player} =~ m/transfer/i )
 	    }
 	    keys %$results;
 	},
@@ -136,6 +139,67 @@ subtype HomeworkResult,
 	message {
 "Missing or non-numerical score or value not 'transfer'," };
 
+=head2 Cutpoints
+
+'one', 'two' cutpoints with the numerical value
+
+=cut
+
+subtype Cutpoints,
+	as HashRef,
+	where {
+	    my $cutpoint = $_;
+	    all {
+		( m/one/i or m/two/i ) and
+		Num->check( $cutpoint->{$_} )
+		} keys %$_
+	      },
+	message {
+"Missing 'one', 'two' cutpoints with numerical value," };
+
+=head2 HomeworkPoints
+
+A number or undef.
+
+=cut
+
+subtype HomeworkPoints, as Maybe[Num];
+
+=head2 HomeworkWork
+
+'letters' and 'questions' and the number of each. But letters might be undef.
+
+=cut
+
+subtype HomeworkWork,
+	as HashRef,
+	where {
+	    my $work = $_;
+	    all {
+		( m/letters/i or m/questions/i ) and
+		HomeworkPoints->check( $work->{$_} )
+		} keys %$work
+	      },
+	message {
+"Missing 'letters', 'questions' and HomeworkPoints," };
+
+=head2 HomeworkWorks
+
+HomeworkWork of all players.
+
+=cut
+
+subtype HomeworkWorks,
+	as HashRef,
+	where {
+	    my $points = $_;
+	    all { 
+		PlayerId->check( $_ ) and HomeworkWork->check( $points->{$_} )
+		} keys %$points
+	      },
+	message {
+"Missing players and their points," };
+
 =head2 HomeworkRound
 
 A hashref of PlayerId keys and HomeworkResult values.
@@ -147,31 +211,33 @@ subtype HomeworkRound,
 	where { 
 	    my $play = $_;
 	    all {
-		    m/topic/i or
-		    PlayerId->check( $_ ) and 
-		    HomeworkResult->check( $play->{$_} )
-	    }
+		    my $value = $play->{$_};
+		    m/exercise/i and Str->check( $value ) or
+		    m/cutpoints/i and Cutpoints->check( $value ) or
+		    m/grade/ and Results->check( $value ) or
+		    m/points/ and HomeworkWorks->check( $value )
+		}
 	    keys %$play;
 	},
 	message {
-"Problematic PlayerId or HomeworkResult or not 'topic' key," };
+"Problematic homework round file," };
 
-=head2 HomeworkRounds
+=head2 RoundsResults
 
-A hashref of the homework keyed on the round (an Int.) For each round, the keys are PlayerId, and the values are scores, or Num.
+A hashref of the homework grades keyed on the round (an Int.) For each round, the keys are PlayerId, and the values are scores, or Num.
 
 =cut
 
-subtype HomeworkRounds,
+subtype RoundsResults,
 	as HashRef,
 	where { 
 		my $results = $_;
 		my $test = all {
 			my $round = $_;
 			Int->check( $round ) and
-			    HomeworkRound->check( $results->{$round} )
+			    Results->check( $results->{$round} )
 		    } keys %$results;
-		return 0 unless $test or not defined $test;
+		return 1 if $test or not defined $test;
 	},
 	message {
 "Impossible round number or PlayerId, or missing or non-numerical score," };
@@ -214,7 +280,7 @@ subtype Card,
 		all {
 			my $can = $_;
 			Str->check( $can ) and 
-			Int->check( $card{$can}->{merits} ) and
+			Num->check( $card{$can}->{merits} ) and
 			Int->check( $card{$can}->{absences} ) and
 			Int->check( $card{$can}->{tardies} );
 		}
@@ -224,7 +290,7 @@ subtype Card,
 
 =head2 TortCard
 
-A hashref of classwork results for the lesson, where the keys are beancan names (Str) and for each beancan there are 'merits', and 'absences' keys, with an Int value for the first and AbsenteeNames for the second key.
+A hashref of classwork results for the lesson, where the keys are beancan names (Str) and for each beancan there are 'merits', and 'absent' keys, with an Int value for the first and AbsenteeNames for the second key.
 
 =cut
 
@@ -233,6 +299,9 @@ subtype TortCard,
 	where {
 		my %card = %$_;
 		delete $card{Absent};
+		for my $key ( keys %card ) {
+		    delete $card{$key} unless $key =~ m/^[[:upper:]]/;
+		}
 		all {
 			my $can = $_;
 			Str->check( $can ) and 

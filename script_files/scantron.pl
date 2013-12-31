@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # Created: 西元2010年04月04日 18時44分24秒
-# Last Edit: 2010  6月 19, 19時42分09秒
+# Last Edit: 2013 Apr 23, 09:32:29 PM
 # $Id$
 
 =head1 NAME
@@ -36,9 +36,7 @@ Makes it easy to transfer from paper subject/quiztopicform.tex quiz form, to exa
 =cut
 
 my $league = League->new( id => $id );
-my $approach = Approach->new( league => $league );
-my $classwork = Classwork->new( approach => $approach );
-my $grades = Grades->new( league => $league, classwork => $classwork );
+my $grades = Grades->new({ league => $league });
 
 my $members = $league->members;
 
@@ -51,6 +49,7 @@ for my $group ( keys %$groups ) {
 	warn "Only @$idsbyRole in $group," if not all { defined } @$idsbyRole;
 	my $form = $grades->topic( $exam, $group ) .
 			$grades->form( $exam, $group );
+	die "$group group's topic, form in ${id}'s Exam $exam?" unless $form;
 	push @{ $formorder{$form} }, $group;
 	my $qn = $grades->qn( $exam, $group );
 	my $groupresponse = $response->{$group};
@@ -60,8 +59,8 @@ for my $group ( keys %$groups ) {
 	Bless( $response->{$group}->{$_} )->keys( [1..$qn] ) for @$idsbyRole;
 	Bless( $response->{$group} )->keys( $idsbyRole );
 }
-my @formorders = values %formorder;
-Bless( $response )->keys([ map { sort @$_ } @formorders ]);
+my @formorders = map { $formorder{$_} } sort keys %formorder;
+# Bless( $response )->keys([ map { sort @$_ } @formorders ]);
 $YAML::UseAliases = 0;
 print Dump $response;
 

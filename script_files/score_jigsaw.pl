@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 
 # Created: 西元2010年04月04日 19時52分56秒
-# Last Edit: 2010  6月 19, 19時40分33秒
-# $Id: /loc/ttb/beans/trunk/script_files/score_jigsaw.pl 5872 2010-06-19T11:43:57.366754Z drbean  $
+# Last Edit: 2013 May 29, 09:17:14 PM
+# $Id: score_jigsaw.pl 1801 2013-06-06 07:58:16Z drbean $
 
 =head1 NAME
 
@@ -30,9 +30,7 @@ my $id = $answers->league || basename( getcwd );
 my $exam = $answers->round;
 
 my $league = League->new( id => $id );
-my $approach = Approach->new( league => $league );
-my $classwork = Classwork->new( approach => $approach );
-my $grades = Grades->new( league => $league, classwork => $classwork );
+my $grades = Grades->new({ league => $league });
 
 =head1 DESCRIPTION
 
@@ -60,6 +58,8 @@ for my $group ( keys %$groups ) {
 	    }
 	    elsif ( $answer eq 'True' or $answer eq 'False' ) {
 		$codedvalue->[$n++] = { True => 'T', False => 'F' } }
+	    elsif ( $answer eq 'Present' or $answer eq 'Absent' ) {
+		$codedvalue->[$n++] = { Absent => 'Absent', Present => 'Present' } }
 	    else {
 		warn "Answer for " . ($n+1) . "th item in $topic$form quiz,";
 		$codedvalue->[$n++] = { Other => 'Other' } }
