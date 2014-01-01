@@ -41,4 +41,4 @@ requires:
 resources:
   homepage: http://search.cpan.org/dist/Grades/
   repository: http://svn.openfoundry.org/ttb/beans
-version: 0.14
+version: 0.15

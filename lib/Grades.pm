@@ -1,6 +1,6 @@
 package Grades;
 {
-  $Grades::VERSION = '0.14';
+  $Grades::VERSION = '0.15';
 }
 
 #Last Edit: 2013 Sep 03, 08:01:08 AM
@@ -10,7 +10,7 @@ use MooseX::Declare;
 
 package Grades::Script;
 {
-  $Grades::Script::VERSION = '0.14';
+  $Grades::Script::VERSION = '0.15';
 }
 use Moose;
 with 'MooseX::Getopt';

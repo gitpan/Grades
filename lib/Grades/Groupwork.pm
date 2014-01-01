@@ -1,5 +1,5 @@
-#Last Edit: 2013 Dec 31, 12:02:25 PM
-#$Id: Groupwork.pm 1928 2013-12-31 04:04:20Z drbean $
+#Last Edit: 2014 Jan 01, 12:16:04 PM
+#$Id: Groupwork.pm 1947 2014-01-01 04:17:44Z drbean $
 
 use MooseX::Declare;
 
@@ -593,7 +593,9 @@ Running totals for individual ids out of 100, over the whole series.
 		for my $member ( @$members ) {
 			my $id = $member->{id};
 			if ( exists $grades{$id} ) {
-				$grades{$id} = min( 100, $grades{$id} );
+				my $grade = min( 100, $grades{$id} );
+				my $rounded = sprintf '%.2f', $grade;
+				$grades{$id} = $rounded;
 			}
 			else {
 				my $name = $member->{name};
@@ -812,7 +814,8 @@ Running totals for individual ids out of 100, over the whole series.
 		    my $score = 100 * $grades->{$id} / $totalMax ;
 		    warn "$member->{name}: ${id}'s classwork score of $score"
 			if $score > 100;
-		    $percent{$id} = $score;
+		    my $rounded = sprintf '%.2f', $score;
+		    $percent{$id} = $rounded;
 		}
 		return \%percent;
 	}

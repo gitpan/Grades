@@ -1,5 +1,5 @@
-#Last Edit: 2013 Dec 31, 12:00:33 PM
-#$Id: Groupwork.pm 1927 2013-12-31 03:52:09Z drbean $
+#Last Edit: 2014 Jan 01, 12:13:33 PM
+#$Id: Groupwork.pm 1928 2013-12-31 04:04:20Z drbean $
 
 use MooseX::Declare;
 
@@ -163,9 +163,7 @@ The beans awarded to the beancans in the individual cards over the weeks of the 
 	has 'data' => (is => 'ro', isa => 'HashRef', lazy_build => 1);
 	method _build_data {
 		my $files = $self->all_ided_files;
-		my $weeks = $self->all_events;
-		+{ map { $weeks->[$_] => $self->inspect( $files->[$_] ) }
-			0..$#$weeks };
+		+{ map { $_ => $self->inspect( $files->{$_} ) } keys %$files };
 	}
 
 =head3 card
@@ -595,7 +593,9 @@ Running totals for individual ids out of 100, over the whole series.
 		for my $member ( @$members ) {
 			my $id = $member->{id};
 			if ( exists $grades{$id} ) {
-				$grades{$id} = min( 100, $grades{$id} );
+				my $grade = min( 100, $grades{$id} );
+				my $rounded = sprintf '%.2f', $grade;
+				$grades{$id} = $rounded;
 			}
 			else {
 				my $name = $member->{name};

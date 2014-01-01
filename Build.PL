@@ -19,7 +19,7 @@ my %module_build_args = (
     "Dr Bean <drbean at (a) cpan dot (.) org>"
   ],
   "dist_name" => "Grades",
-  "dist_version" => "0.14",
+  "dist_version" => "0.15",
   "license" => "perl",
   "module_name" => "Grades",
   "recommends" => {},
