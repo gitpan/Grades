@@ -24,9 +24,9 @@ script_files/grade_jigsaw.pl
 script_files/grade_name_file.pl
 script_files/print_grades.pl
 script_files/scantron.pl
+script_files/school_data.pl
 script_files/score_homework.pl
 script_files/score_jigsaw.pl
-script_files/sum_g12.pl
 script_files/sum_g1_g2.pl
 t/00-load.t
 t/02pod.t

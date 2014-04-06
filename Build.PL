@@ -19,7 +19,7 @@ my %module_build_args = (
     "Dr Bean <drbean at (a) cpan dot (.) org>"
   ],
   "dist_name" => "Grades",
-  "dist_version" => "0.15",
+  "dist_version" => "0.16",
   "license" => "perl",
   "module_name" => "Grades",
   "recommends" => {},
@@ -27,9 +27,11 @@ my %module_build_args = (
   "requires" => {
     "Carp" => 0,
     "Cwd" => 0,
+    "Encode" => 0,
     "File::Basename" => 0,
     "Getopt::Long" => 0,
     "IO::All" => 0,
+    "Lingua::Han::PinYin" => 0,
     "List::MoreUtils" => 0,
     "List::Util" => 0,
     "Moose" => 0,
@@ -49,15 +51,15 @@ my %module_build_args = (
     "warnings" => 0
   },
   "script_files" => [
-    "script_files/anterior_data.pl",
+    "script_files/print_grades.pl",
     "script_files/grade_jigsaw.pl",
     "script_files/sum_g1_g2.pl",
+    "script_files/create_groups.pl",
+    "script_files/school_data.pl",
+    "script_files/anterior_data.pl",
     "script_files/grade_name_file.pl",
     "script_files/score_homework.pl",
-    "script_files/create_groups.pl",
     "script_files/score_jigsaw.pl",
-    "script_files/sum_g12.pl",
-    "script_files/print_grades.pl",
     "script_files/scantron.pl"
   ]
 );

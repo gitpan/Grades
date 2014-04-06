@@ -2,7 +2,7 @@
 
 # Created: 西元2010年04月04日 19時52分56秒
 # Last Edit: 2013 May 29, 09:17:14 PM
-# $Id: score_jigsaw.pl 1801 2013-06-06 07:58:16Z drbean $
+# $Id: score_jigsaw.pl 1966 2014-03-24 14:15:49Z drbean $
 
 =head1 NAME
 

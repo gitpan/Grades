@@ -28,10 +28,10 @@ dir = script_files
 ; [SVK::Push]
 ; push_to = //mi
 
-[FakeRelease]
-[TestRelease]
-; [ConfirmRelease]
-; [UploadToCPAN]
+; [FakeRelease]
+; [TestRelease]
+[ConfirmRelease]
+[UploadToCPAN]
 
 [MetaResources]
 homepage    = http://search.cpan.org/dist/Grades/

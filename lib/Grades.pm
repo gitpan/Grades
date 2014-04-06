@@ -1,16 +1,16 @@
 package Grades;
 {
-  $Grades::VERSION = '0.15';
+  $Grades::VERSION = '0.16';
 }
 
-#Last Edit: 2013 Sep 03, 08:01:08 AM
-#$Id: Grades.pm 1811 2013-09-03 13:36:54Z drbean $
+#Last Edit: 2014  2月 15, 16時23分02秒
+#$Id: Grades.pm 1960 2014-02-15 08:27:09Z drbean $
 
 use MooseX::Declare;
 
 package Grades::Script;
 {
-  $Grades::Script::VERSION = '0.15';
+  $Grades::Script::VERSION = '0.16';
 }
 use Moose;
 with 'MooseX::Getopt';
@@ -96,7 +96,7 @@ The path to the league directory.
 =cut
 
 	has 'leagues' => (is => 'ro', isa => 'Str', required => 1, lazy => 1,
-	    default => '/home/drbean/021' );
+	    default => '/home/drbean/022' );
 
 =head3 id
 
@@ -401,13 +401,13 @@ A hashref of the homework grades for players in the league for each round.
 		return \%grades;
 	}
 
-=head3 roundMax
+=head3 hwMax
 
 The highest possible score in the homework
 
 =cut
 
-	has 'roundMax' => (is => 'ro', isa => 'Int', lazy => 1, default =>
+	has 'hwMax' => (is => 'ro', isa => 'Int', lazy => 1, default =>
 					sub { shift->league->yaml->{hwMax} } );
 
 =head3 totalMax
@@ -419,7 +419,7 @@ The total maximum points that a Player could have gotten to this point in the wh
 	has 'totalMax' => (is => 'ro', isa => 'Int', lazy_build => 1);
 	method _build_totalMax {
 		my $rounds = $self->rounds;
-		my $hwMax = $self->roundMax;
+		my $hwMax = $self->hwMax;
 		$hwMax * @$rounds;
 	}
 
@@ -1433,7 +1433,7 @@ Assistants points are from config->{assistant} of form { Black => { U9933002 => 
 	if ( $assistants ) {
 	    my %assistantPoints = map { %{ $assistants->{$_} } } keys %$assistants;
 	     # my %assistantPoints = map { $assistants->{$_}->flatten } keys %$assistants;
-	     die "@{ [keys %$assistants] }: assistant members?" if any
+	     die "@{ [keys %$assistants] }: assistant member mistakes." if any
 		{ not $self->league->is_member($_) } keys %assistantPoints;
 	    return \%assistantPoints;
 	}
